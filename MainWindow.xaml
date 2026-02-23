@@ -1,0 +1,177 @@
+﻿<Window x:Class="AutoNumber.NumberingDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:AutoNumber"
+        xmlns:viewModels="clr-namespace:AutoNumber.ViewModels"
+
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        mc:Ignorable="d"
+        Title="Автонумерация блоков"
+        Height="750" Width="500"
+        WindowStartupLocation="CenterScreen"
+        Background="#2d2d30"
+        Foreground="#f0f0f0"
+        FontFamily="Segoe UI"
+        >
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ResourceDictionary.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="50.842"/>
+            <RowDefinition Height="18.078"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Тег атрибута -->
+        <GroupBox Header="Параметры нумерации" Grid.Row="0" Margin="5,5,5,5">
+            <Grid Margin="5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Label Grid.Row="0" Grid.Column="0" Content="Тег атрибута:"/>
+                <ComboBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="3"
+                          ItemsSource="{Binding AvailableTags}"
+                          Text="{Binding TagName}"
+                          IsEditable="True"/>
+
+                <Label Grid.Row="1" Grid.Column="0" Content="Начальный номер:"/>
+                <TextBox Grid.Row="1" Grid.Column="1" 
+                         Text="{Binding StartNumber}" 
+                         VerticalAlignment="Center"/>
+
+                <Label Grid.Row="1" Grid.Column="2" Content="Шаг:"/>
+                <TextBox Grid.Row="1" Grid.Column="3" 
+                         Text="{Binding Increment}" 
+                         VerticalAlignment="Center"/>
+
+                <Label Grid.Row="2" Grid.Column="0" Content="Префикс:"/>
+                <TextBox Grid.Row="2" Grid.Column="1" 
+                         Text="{Binding Prefix}" 
+                         VerticalAlignment="Center"/>
+
+                <Label Grid.Row="2" Grid.Column="2" Content="Суффикс:"/>
+                <TextBox Grid.Row="2" Grid.Column="3" 
+                         Text="{Binding Suffix}" 
+                         VerticalAlignment="Center"/>
+            </Grid>
+        </GroupBox>
+
+        <!-- Режим выбора -->
+        <GroupBox Header="Режим выбора блоков" Grid.Row="1">
+            <StackPanel>
+                <RadioButton x:Name="rbSelectByWindow" 
+                     Content="Выбрать рамкой" 
+                     IsChecked="True"
+                     Checked="RadioButton_Checked"
+                     Margin="5"/>
+                <RadioButton x:Name="rbAllOnLayouts" 
+                     Content="Все блоки на листах" 
+                     Checked="RadioButton_Checked"
+                     Margin="5"/>
+                <RadioButton x:Name="rbByBlockName" 
+                     Content="По имени блока" 
+                     Checked="RadioButton_Checked"
+                     Margin="5"/>
+
+                <StackPanel x:Name="pnlBlockName" 
+                    Margin="20,5,0,5" 
+                    IsEnabled="{Binding ElementName=rbByBlockName, Path=IsChecked}">
+                    <Label Content="Имя блока (можно * для всех):"/>
+                    <ComboBox ItemsSource="{Binding AvailableBlocks}"
+                      Text="{Binding BlockNameFilter}"
+                      IsEditable="True"
+                      Margin="5,0"/>
+                </StackPanel>
+
+                <CheckBox Content="Включая ModelSpace" 
+                  IsChecked="{Binding IncludeModelSpace}"
+                  Margin="5"/>
+            </StackPanel>
+        </GroupBox>
+
+        <!-- Сортировка -->
+        <GroupBox Header="Сортировка" Grid.Row="2" Margin="5,5,5,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <CheckBox Grid.Row="0" Grid.Column="0" Content="Сортировать по X" 
+                          IsChecked="{Binding SortByX}" Margin="5"/>
+                <ComboBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                          SelectedItem="{Binding XDirection}"
+                          Width="100" Margin="5"
+                          IsEnabled="{Binding SortByX}">
+                    <ComboBox.ItemsSource>
+                        <x:Array Type="sys:Object">
+                            <sys:String>Ascending</sys:String>
+                            <sys:String>Descending</sys:String>
+                        </x:Array>
+                    </ComboBox.ItemsSource>
+                </ComboBox>
+
+                <CheckBox Grid.Row="1" Grid.Column="0" Content="Сортировать по Y" 
+                          IsChecked="{Binding SortByY}" Margin="5"/>
+                <ComboBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                          SelectedItem="{Binding YDirection}"
+                          Width="100" Margin="5"
+                          IsEnabled="{Binding SortByY}">
+                    <ComboBox.ItemsSource>
+                        <x:Array Type="sys:Object">
+                            <sys:String>Ascending</sys:String>
+                            <sys:String>Descending</sys:String>
+                        </x:Array>
+                    </ComboBox.ItemsSource>
+                </ComboBox>
+            </Grid>
+        </GroupBox>
+
+        <!-- Предпросмотр -->
+        <GroupBox Header="Предпросмотр" Grid.Row="3" Height="100" Margin="5,5,5,5">
+            <ListBox ItemsSource="{Binding PreviewItems}" 
+                     Background="#1e1e1e"
+                     BorderThickness="0"/>
+        </GroupBox>
+
+        <!-- Информация -->
+        <GroupBox Header="Информация" Grid.Row="4" Margin="5,5,5,5" Grid.RowSpan="2">
+            <TextBlock Text="{Binding InfoText}" 
+                       TextWrapping="Wrap"
+                       Margin="5"/>
+        </GroupBox>
+
+        <!-- Кнопки -->
+        <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="OK" Click="OkButton_Click" IsDefault="True" Width="80" Height="30" Margin="5"/>
+            <Button Content="Отмена" Click="CancelButton_Click" IsCancel="True" Width="80" Height="30" Margin="5"/>
+        </StackPanel>
+    </Grid>
+</Window>
