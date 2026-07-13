@@ -1,21 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 namespace AutoNumber.Models
 {
-    public enum NumberingMode
+    public enum NumberingScope
     {
-        SelectByWindow,
-        AllOnLayouts,
-        ByBlockName
-    }
-
-    public enum SortDirection
-    {
-        Ascending,
-        Descending
+        SelectedObjects,
+        AllLayouts
     }
 }

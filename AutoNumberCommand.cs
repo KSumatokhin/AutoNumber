@@ -1,425 +1,239 @@
-﻿using Bricscad.ApplicationServices;
+using AutoNumber.Models;
+using AutoNumber.ViewModels;
+using Bricscad.ApplicationServices;
 using Bricscad.EditorInput;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Windows;
+using System.Windows.Interop;
 using Teigha.DatabaseServices;
-using Teigha.Geometry;
 using Teigha.Runtime;
 using Application = Bricscad.ApplicationServices.Application;
-
-using AutoNumber.Models;
 
 namespace AutoNumber
 {
     public class AutoNumberCommand
     {
+        private const double RowTolerance = 0.1;
+
         [CommandMethod("AutoNumber")]
         public void AutoNumber()
         {
             var doc = Application.DocumentManager.MdiActiveDocument;
-            var db = doc.Database;
-            var ed = doc.Editor;
+            var editor = doc.Editor;
 
             try
             {
-                // Собираем доступные теги из чертежа
-                var availableTags = CollectAttributeTags(db);
+                ObjectId sampleId = PromptForSample(editor);
+                if (sampleId.IsNull)
+                    return;
 
-                // Собираем имена блоков
-                var availableBlocks = CollectBlockNames(db);
-
-                // Создаем ViewModel
-                var viewModel = new ViewModels.NumberingSettingsViewModel
+                string blockName;
+                List<string> tags;
+                using (var transaction = doc.TransactionManager.StartTransaction())
                 {
-                    AvailableTags = new ObservableCollection<string>(availableTags),
-                    AvailableBlocks = new ObservableCollection<string>(availableBlocks)
+                    var sample = (BlockReference)transaction.GetObject(sampleId, OpenMode.ForRead);
+                    blockName = GetEffectiveBlockName(sample, transaction);
+                    tags = GetAttributeTags(sample, transaction);
+                }
+
+                if (tags.Count == 0)
+                {
+                    editor.WriteMessage("\nУ выбранного блока нет редактируемых атрибутов.");
+                    return;
+                }
+
+                var settings = new NumberingSettingsViewModel
+                {
+                    BlockName = blockName,
+                    AvailableTags = new ObservableCollection<string>(tags),
+                    TagName = tags.FirstOrDefault(t => string.Equals(t, "NUM", StringComparison.OrdinalIgnoreCase)) ?? tags[0]
                 };
 
-                // Создаем и показываем диалог
-                var dialog = new NumberingDialog(viewModel);
+                var dialog = new NumberingDialog(settings);
+                new WindowInteropHelper(dialog).Owner = Application.MainWindow.Handle;
+                if (dialog.ShowDialog() != true)
+                    return;
 
-                // Устанавливаем владельца окна для AutoCAD
-                //var wpfHandler = new WindowWrapper(Application.MainWindow.Handle);
-                //System.Windows.Interop.WindowInteropHelper helper =
-                //    new System.Windows.Interop.WindowInteropHelper(dialog);
-                //helper.Owner = Application.MainWindow.Handle;
-
-                // Обновляем предпросмотр при изменении настроек
-                viewModel.PropertyChanged += (s, e) =>
+                ObjectId[] selectedIds = null;
+                if (settings.Scope == NumberingScope.SelectedObjects)
                 {
-                    if (e.PropertyName != nameof(viewModel.PreviewItems))
-                    {
-                        UpdatePreview(doc, viewModel);
-                    }
-                };
-
-                // Показываем диалог
-                if (dialog.ShowDialog() == true)
-                {
-                    // Выполняем нумерацию
-                    PerformNumbering(doc, viewModel);
-                }
-            }
-            catch (System.Exception ex)
-            {
-                // Log detailed error information for debugging (in a production environment)
-                // System.Diagnostics.Debug.WriteLine($"AutoNumber error: {ex}");
-                
-                // Show generic error message to user to prevent information disclosure
-                ed.WriteMessage($"\nПроизошла ошибка при выполнении команды. Проверьте правильность ввода данных.");
-            }
-        }
-
-        private List<string> CollectAttributeTags(Database db)
-        {
-            var tags = new HashSet<string>();
-
-            using (var tr = db.TransactionManager.StartTransaction())
-            {
-                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-
-                foreach (ObjectId btrId in bt)
-                {
-                    var btr = (BlockTableRecord)tr.GetObject(btrId, OpenMode.ForRead);
-
-                    // Пропускаем служебные блоки
-                    if (btr.IsAnonymous || btr.IsLayout)
-                        continue;
-
-                    // Ищем атрибуты в определениях блоков
-                    foreach (ObjectId id in btr)
-                    {
-                        if (id.ObjectClass.Name == "AcDbAttributeDefinition")
-                        {
-                            var attDef = (AttributeDefinition)tr.GetObject(id, OpenMode.ForRead);
-                            tags.Add(attDef.Tag);
-                        }
-                    }
+                    selectedIds = PromptForObjects(editor);
+                    if (selectedIds == null)
+                        return;
                 }
 
-                tr.Commit();
+                NumberBlocks(doc, settings, blockName, selectedIds);
             }
-
-            return tags.ToList();
-        }
-
-        private List<string> CollectBlockNames(Database db)
-        {
-            var blocks = new List<string>();
-
-            using (var tr = db.TransactionManager.StartTransaction())
+            catch (System.Exception exception)
             {
-                var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-
-                foreach (ObjectId btrId in bt)
-                {
-                    var btr = (BlockTableRecord)tr.GetObject(btrId, OpenMode.ForRead);
-
-                    // Только неанонимные блоки, которые можно вставлять
-                    if (!btr.IsAnonymous && !btr.IsLayout && !btr.IsDynamicBlock)
-                    {
-                        blocks.Add(btr.Name);
-                    }
-                }
-
-                tr.Commit();
-            }
-
-            return blocks;
-        }
-
-        private void UpdatePreview(Document doc, ViewModels.NumberingSettingsViewModel settings)
-        {
-            // Здесь можно добавить логику предпросмотра
-            // Например, показать первые 5 блоков, которые будут пронумерованы
-        }
-
-        private void PerformNumbering(Document doc, ViewModels.NumberingSettingsViewModel settings)
-        {
-            var ed = doc.Editor;
-
-            using (var tr = doc.TransactionManager.StartTransaction())
-            {
-                try
-                {
-                    var blocksToNumber = GetBlocksToNumber(doc, settings, tr);
-                    var sortedBlocks = SortBlocks(blocksToNumber, settings, tr);
-
-                    int counter = settings.StartNumber;
-                    int numbered = 0;
-
-                    foreach (var br in sortedBlocks)
-                    {
-                        var bref = (BlockReference)tr.GetObject(br.ObjectId, OpenMode.ForWrite);
-
-                        foreach (ObjectId attId in bref.AttributeCollection)
-                        {
-                            var att = (AttributeReference)tr.GetObject(attId, OpenMode.ForWrite);
-
-                            if (att.Tag == settings.TagName)
-                            {
-                                string number = settings.Prefix + counter + settings.Suffix;
-                                att.TextString = number;
-                                numbered++;
-                                break;
-                            }
-                        }
-
-                        counter += settings.Increment;
-                    }
-
-                    tr.Commit();
-                    ed.WriteMessage($"\nПронумеровано {numbered} блоков.");
-                }
-                catch (System.Exception ex)
-                {
-                    // Log detailed error information for debugging (in a production environment)
-                    // System.Diagnostics.Debug.WriteLine($"AutoNumber numbering error: {ex}");
-                    
-                    ed.WriteMessage($"\nПроизошла ошибка при нумерации блоков. Проверьте правильность ввода данных.");
-                    tr.Abort();
-                }
+                editor.WriteMessage("\nОшибка AutoNumber: " + exception.Message);
             }
         }
 
-        private List<BlockReference> GetBlocksToNumber(Document doc,
-            ViewModels.NumberingSettingsViewModel settings, Transaction tr)
+        private static ObjectId PromptForSample(Editor editor)
         {
-            var result = new List<BlockReference>();
-            var ed = doc.Editor;
-
-            switch (settings.SelectedMode)
-            {
-                case Models.NumberingMode.SelectByWindow:
-                    var selection = SelectBlocksByWindow(ed);
-                    if (selection != null)
-                    {
-                        foreach (ObjectId id in selection)
-                        {
-                            var br = tr.GetObject(id, OpenMode.ForRead) as BlockReference;
-                            if (br != null && ShouldIncludeBlock(br, settings, tr))
-                                result.Add(br);
-                        }
-                    }
-                    break;
-
-                case Models.NumberingMode.AllOnLayouts:
-                    result = GetAllBlocksOnLayouts(doc, settings, tr);
-                    break;
-
-                case Models.NumberingMode.ByBlockName:
-                    result = GetBlocksByName(doc, settings, tr);
-                    break;
-            }
-
-            return result;
+            var options = new PromptEntityOptions("\nВыберите блок-образец: ");
+            options.SetRejectMessage("\nНужно выбрать блок.");
+            options.AddAllowedClass(typeof(BlockReference), true);
+            var result = editor.GetEntity(options);
+            return result.Status == PromptStatus.OK ? result.ObjectId : ObjectId.Null;
         }
 
-        private ObjectId[] SelectBlocksByWindow(Editor ed)
+        private static ObjectId[] PromptForObjects(Editor editor)
         {
-            var filter = new SelectionFilter(new[]
-            {
-                new TypedValue((int)DxfCode.Start, "INSERT")
-            });
-
-            var options = new PromptSelectionOptions
-            {
-                MessageForAdding = "\nВыберите блоки для нумерации:"
-            };
-
-            var result = ed.GetSelection(options, filter);
+            var filter = new SelectionFilter(new[] { new TypedValue((int)DxfCode.Start, "INSERT") });
+            var options = new PromptSelectionOptions { MessageForAdding = "\nВыберите блоки для нумерации: " };
+            var result = editor.GetSelection(options, filter);
             return result.Status == PromptStatus.OK ? result.Value.GetObjectIds() : null;
         }
 
-        private bool ShouldIncludeBlock(BlockReference br,
-            ViewModels.NumberingSettingsViewModel settings, Transaction tr)
+        private static List<string> GetAttributeTags(BlockReference block, Transaction transaction)
         {
-            // Проверяем, нужно ли включать блок
-            var owner = (BlockTableRecord)tr.GetObject(br.OwnerId, OpenMode.ForRead);
-            var layout = (Layout)tr.GetObject(owner.LayoutId, OpenMode.ForRead);
-
-            if (layout.LayoutName == "Model" && !settings.IncludeModelSpace)
-                return false;
-
-            return true;
+            var result = new List<string>();
+            foreach (ObjectId attributeId in block.AttributeCollection)
+            {
+                var attribute = transaction.GetObject(attributeId, OpenMode.ForRead) as AttributeReference;
+                if (attribute != null && !result.Contains(attribute.Tag, StringComparer.OrdinalIgnoreCase))
+                    result.Add(attribute.Tag);
+            }
+            return result.OrderBy(tag => tag).ToList();
         }
 
-        private List<BlockReference> GetAllBlocksOnLayouts(Document doc,
-            ViewModels.NumberingSettingsViewModel settings, Transaction tr)
+        private static string GetEffectiveBlockName(BlockReference block, Transaction transaction)
         {
-            var result = new List<BlockReference>();
-            var db = doc.Database;
-            var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
+            ObjectId definitionId = block.IsDynamicBlock ? block.DynamicBlockTableRecord : block.BlockTableRecord;
+            var definition = (BlockTableRecord)transaction.GetObject(definitionId, OpenMode.ForRead);
+            return definition.Name;
+        }
 
-            foreach (ObjectId btrId in bt)
+        private static bool HasAttribute(BlockReference block, string tag, Transaction transaction)
+        {
+            foreach (ObjectId attributeId in block.AttributeCollection)
             {
-                var btr = (BlockTableRecord)tr.GetObject(btrId, OpenMode.ForRead);
+                var attribute = transaction.GetObject(attributeId, OpenMode.ForRead) as AttributeReference;
+                if (attribute != null && string.Equals(attribute.Tag, tag, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
+        }
 
-                if (btr.IsAnonymous || btr.IsLayout)
+        private static bool TrySetAttribute(BlockReference block, string tag, string value, Transaction transaction)
+        {
+            foreach (ObjectId attributeId in block.AttributeCollection)
+            {
+                var attribute = transaction.GetObject(attributeId, OpenMode.ForRead) as AttributeReference;
+                if (attribute == null || !string.Equals(attribute.Tag, tag, StringComparison.OrdinalIgnoreCase))
                     continue;
 
-                var brefIds = btr.GetBlockReferenceIds(true, false);
+                attribute.UpgradeOpen();
+                attribute.TextString = value;
+                return true;
+            }
+            return false;
+        }
 
-                foreach (ObjectId id in brefIds)
+        private static List<Layout> GetLayouts(Database database, Transaction transaction, bool includeModelSpace)
+        {
+            var layouts = new List<Layout>();
+            var dictionary = (DBDictionary)transaction.GetObject(database.LayoutDictionaryId, OpenMode.ForRead);
+            foreach (DBDictionaryEntry entry in dictionary)
+            {
+                var layout = (Layout)transaction.GetObject(entry.Value, OpenMode.ForRead);
+                if (!layout.ModelType || includeModelSpace)
+                    layouts.Add(layout);
+            }
+            return layouts.OrderBy(layout => layout.TabOrder).ToList();
+        }
+
+        private static List<BlockReference> GetLayoutBlocks(
+            Layout layout, string blockName, string tag, Transaction transaction)
+        {
+            var blocks = new List<BlockReference>();
+            var layoutSpace = (BlockTableRecord)transaction.GetObject(layout.BlockTableRecordId, OpenMode.ForRead);
+            foreach (ObjectId entityId in layoutSpace)
+            {
+                var block = transaction.GetObject(entityId, OpenMode.ForRead) as BlockReference;
+                if (block != null &&
+                    string.Equals(GetEffectiveBlockName(block, transaction), blockName, StringComparison.OrdinalIgnoreCase) &&
+                    HasAttribute(block, tag, transaction))
                 {
-                    var br = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
-
-                    if (ShouldIncludeBlock(br, settings, tr))
-                        result.Add(br);
+                    blocks.Add(block);
                 }
             }
-
-            return result;
+            return SortInReadingOrder(blocks);
         }
 
-        private List<BlockReference> GetBlocksByName(Document doc,
-            ViewModels.NumberingSettingsViewModel settings, Transaction tr)
+        private static List<BlockReference> SortInReadingOrder(IEnumerable<BlockReference> blocks)
         {
-            var result = new List<BlockReference>();
-            var db = doc.Database;
-            var bt = (BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead);
-
-            // Sanitize user input for regex pattern to prevent ReDoS
-            string sanitizedFilter = settings.BlockNameFilter.Replace("*", ".*");
-            // Escape special regex characters to prevent injection
-            string escapedPattern = System.Text.RegularExpressions.Regex.Escape(sanitizedFilter);
-            // Convert escaped wildcards back to actual wildcards
-            string finalPattern = escapedPattern.Replace("\\.\\*", ".*");
-            
-            var regex = new System.Text.RegularExpressions.Regex(finalPattern,
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-            foreach (ObjectId btrId in bt)
+            var rows = new List<List<BlockReference>>();
+            foreach (var block in blocks.OrderByDescending(item => item.Position.Y))
             {
-                var btr = (BlockTableRecord)tr.GetObject(btrId, OpenMode.ForRead);
-
-                if (btr.IsAnonymous || btr.IsLayout)
-                    continue;
-
-                if (regex.IsMatch(btr.Name))
+                var row = rows.FirstOrDefault(items => Math.Abs(items[0].Position.Y - block.Position.Y) <= RowTolerance);
+                if (row == null)
                 {
-                    var brefIds = btr.GetBlockReferenceIds(true, false);
+                    row = new List<BlockReference>();
+                    rows.Add(row);
+                }
+                row.Add(block);
+            }
 
-                    foreach (ObjectId id in brefIds)
+            return rows
+                .OrderByDescending(row => row.Average(item => item.Position.Y))
+                .SelectMany(row => row.OrderBy(item => item.Position.X))
+                .ToList();
+        }
+
+        private static List<BlockReference> GetSelectedBlocks(
+            ObjectId[] ids, string blockName, string tag, Transaction transaction)
+        {
+            var blocks = new List<BlockReference>();
+            foreach (ObjectId id in ids)
+            {
+                var block = transaction.GetObject(id, OpenMode.ForRead) as BlockReference;
+                if (block != null &&
+                    string.Equals(GetEffectiveBlockName(block, transaction), blockName, StringComparison.OrdinalIgnoreCase) &&
+                    HasAttribute(block, tag, transaction))
+                {
+                    blocks.Add(block);
+                }
+            }
+            return SortInReadingOrder(blocks);
+        }
+
+        private static void NumberBlocks(
+            Document document, NumberingSettingsViewModel settings, string blockName, ObjectId[] selectedIds)
+        {
+            int number = settings.StartNumber;
+            int count = 0;
+
+            using (var transaction = document.TransactionManager.StartTransaction())
+            {
+                IEnumerable<BlockReference> blocks;
+                if (settings.Scope == NumberingScope.AllLayouts)
+                {
+                    blocks = GetLayouts(document.Database, transaction, settings.IncludeModelSpace)
+                        .SelectMany(layout => GetLayoutBlocks(layout, blockName, settings.TagName, transaction));
+                }
+                else
+                {
+                    blocks = GetSelectedBlocks(selectedIds, blockName, settings.TagName, transaction);
+                }
+
+                foreach (var block in blocks)
+                {
+                    string value = settings.Prefix + number + settings.Suffix;
+                    if (TrySetAttribute(block, settings.TagName, value, transaction))
                     {
-                        var br = (BlockReference)tr.GetObject(id, OpenMode.ForRead);
-
-                        if (ShouldIncludeBlock(br, settings, tr))
-                            result.Add(br);
+                        number += settings.Increment;
+                        count++;
                     }
                 }
+                transaction.Commit();
             }
 
-            return result;
-        }
-
-        private List<BlockReference> SortBlocks(List<BlockReference> blocks,
-            ViewModels.NumberingSettingsViewModel settings, Transaction tr)
-        {
-            IOrderedEnumerable<BlockReference> sorted = null;
-
-            // Сначала применяем основную сортировку
-            if (settings.SortByY)
-            {
-                sorted = settings.YDirection == Models.SortDirection.Ascending
-                    ? blocks.OrderBy(b => b.Position.Y)
-                    : blocks.OrderByDescending(b => b.Position.Y);
-            }
-            else if (settings.SortByX)
-            {
-                sorted = settings.XDirection == Models.SortDirection.Ascending
-                    ? blocks.OrderBy(b => b.Position.X)
-                    : blocks.OrderByDescending(b => b.Position.X);
-            }
-
-            // Затем применяем дополнительную сортировку
-            if (sorted != null)
-            {
-                if (settings.SortByY && settings.SortByX)
-                {
-                    sorted = settings.XDirection == Models.SortDirection.Ascending
-                        ? sorted.ThenBy(b => b.Position.X)
-                        : sorted.ThenByDescending(b => b.Position.X);
-                }
-                else if (settings.SortByX && settings.SortByY)
-                {
-                    sorted = settings.YDirection == Models.SortDirection.Ascending
-                        ? sorted.ThenBy(b => b.Position.Y)
-                        : sorted.ThenByDescending(b => b.Position.Y);
-                }
-
-                return sorted.ToList();
-            }
-
-            // Если сортировка не задана, возвращаем как есть
-            return blocks;
-        }
-        
-        // Input validation methods
-        private bool ValidateTagName(string tagName)
-        {
-            // Check for null or empty
-            if (string.IsNullOrEmpty(tagName))
-                return false;
-                
-            // Check length (prevent buffer overflow)
-            if (tagName.Length > 255)
-                return false;
-                
-            // Check for invalid characters
-            char[] invalidChars = { '<', '>', '"', '|', '\0', '\n', '\r' };
-            foreach (char c in invalidChars)
-            {
-                if (tagName.Contains(c))
-                    return false;
-            }
-            
-            return true;
-        }
-        
-        private bool ValidatePrefixSuffix(string value)
-        {
-            // Allow null or empty
-            if (string.IsNullOrEmpty(value))
-                return true;
-                
-            // Check length
-            if (value.Length > 100)
-                return false;
-                
-            // Check for invalid characters
-            char[] invalidChars = { '<', '>', '"', '|', '\0', '\n', '\r' };
-            foreach (char c in invalidChars)
-            {
-                if (value.Contains(c))
-                    return false;
-            }
-            
-            return true;
-        }
-        
-        private bool ValidateBlockNameFilter(string filter)
-        {
-            // Check for null or empty
-            if (string.IsNullOrEmpty(filter))
-                return false;
-                
-            // Check length
-            if (filter.Length > 255)
-                return false;
-                
-            // Check for invalid characters that could cause issues
-            char[] invalidChars = { '<', '>', '"', '|', '\0', '\n', '\r' };
-            foreach (char c in invalidChars)
-            {
-                if (filter.Contains(c))
-                    return false;
-            }
-            
-            return true;
+            document.Editor.WriteMessage("\nПронумеровано блоков: " + count + ".");
         }
     }
 }
