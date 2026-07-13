@@ -13,10 +13,22 @@ using Application = Bricscad.ApplicationServices.Application;
 
 namespace AutoNumber
 {
-    public class AutoNumberCommand
+    public class AutoNumberCommand : IExtensionApplication
     {
         private const double RowTolerance = 0.1;
 
+        public void Initialize()
+        {
+            var document = Application.DocumentManager.MdiActiveDocument;
+            document?.Editor.WriteMessage(
+                "\nAutoNumber загружен. Команды: KS-RENUMATT, AutoNumber.");
+        }
+
+        public void Terminate()
+        {
+        }
+
+        [CommandMethod("KS-RENUMATT")]
         [CommandMethod("AutoNumber")]
         public void AutoNumber()
         {

@@ -3,6 +3,10 @@ using System.Resources;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
+using Teigha.Runtime;
+
+[assembly: CommandClass(typeof(AutoNumber.AutoNumberCommand))]
+[assembly: ExtensionApplication(typeof(AutoNumber.AutoNumberCommand))]
 
 // Общие сведения об этой сборке предоставляются следующим набором
 // набор атрибутов. Измените значения этих атрибутов, чтобы изменить сведения,
