@@ -21,7 +21,7 @@ namespace AutoNumber
         {
             var document = Application.DocumentManager.MdiActiveDocument;
             document?.Editor.WriteMessage(
-                "\nAutoNumber загружен. Команды: KS-RENUMATT, AutoNumber.");
+                "\nAutoNumber загружен. Команды: KS-RENUMATT, AutoNumber, KS-VED.");
         }
 
         public void Terminate()
@@ -68,6 +68,12 @@ namespace AutoNumber
                 if (dialog.ShowDialog() != true)
                     return;
 
+                if (settings.CreateDrawingSchedule)
+                {
+                    DrawingScheduleService.Run(doc);
+                    return;
+                }
+
                 ObjectId[] selectedIds = null;
                 if (settings.Scope == NumberingScope.SelectedObjects)
                 {
@@ -81,6 +87,23 @@ namespace AutoNumber
             catch (System.Exception exception)
             {
                 editor.WriteMessage("\nОшибка AutoNumber: " + exception.Message);
+            }
+        }
+
+        [CommandMethod("KS-VED")]
+        public void DrawingSchedule()
+        {
+            var document = Application.DocumentManager.MdiActiveDocument;
+            if (document == null)
+                return;
+
+            try
+            {
+                DrawingScheduleService.Run(document);
+            }
+            catch (System.Exception exception)
+            {
+                document.Editor.WriteMessage("\nОшибка KS-VED: " + exception.Message);
             }
         }
 
@@ -113,7 +136,7 @@ namespace AutoNumber
             return result.OrderBy(tag => tag).ToList();
         }
 
-        private static string GetEffectiveBlockName(BlockReference block, Transaction transaction)
+        internal static string GetEffectiveBlockName(BlockReference block, Transaction transaction)
         {
             ObjectId definitionId = block.IsDynamicBlock ? block.DynamicBlockTableRecord : block.BlockTableRecord;
             var definition = (BlockTableRecord)transaction.GetObject(definitionId, OpenMode.ForRead);
@@ -146,7 +169,7 @@ namespace AutoNumber
             return false;
         }
 
-        private static List<Layout> GetLayouts(Database database, Transaction transaction, bool includeModelSpace)
+        internal static List<Layout> GetLayouts(Database database, Transaction transaction, bool includeModelSpace)
         {
             var layouts = new List<Layout>();
             var dictionary = (DBDictionary)transaction.GetObject(database.LayoutDictionaryId, OpenMode.ForRead);

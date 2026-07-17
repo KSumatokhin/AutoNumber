@@ -17,6 +17,7 @@ namespace AutoNumber.ViewModels
 
         public string BlockName { get; set; }
         public ObservableCollection<string> AvailableTags { get; set; }
+        public bool CreateDrawingSchedule { get; set; }
 
         public string TagName
         {

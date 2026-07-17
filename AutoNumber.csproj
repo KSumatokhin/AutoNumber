@@ -63,6 +63,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AutoNumberCommand.cs" />
+    <Compile Include="DrawingScheduleService.cs" />
+    <Compile Include="Services\MTextFormatService.cs" />
     <Compile Include="Models\Enums.cs" />
     <Compile Include="ViewModels\NumberingSettingsViewModel.cs" />
     <Page Include="MainWindow.xaml">

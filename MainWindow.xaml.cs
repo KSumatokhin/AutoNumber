@@ -43,5 +43,11 @@ namespace AutoNumber
         {
             DialogResult = false;
         }
+
+        private void ScheduleButton_Click(object sender, RoutedEventArgs e)
+        {
+            ((NumberingSettingsViewModel)DataContext).CreateDrawingSchedule = true;
+            DialogResult = true;
+        }
     }
 }

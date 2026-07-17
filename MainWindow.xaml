@@ -23,6 +23,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,20">
@@ -102,5 +103,9 @@
             <Button Grid.Column="2" Content="Нумеровать" IsDefault="True"
                     Click="OkButton_Click" Margin="10,0,0,0"/>
         </Grid>
+        <Button Grid.Row="5" Content="Ведомость чертежей"
+                Click="ScheduleButton_Click" Margin="0,12,0,0"
+                HorizontalAlignment="Stretch"
+                ToolTip="Сформировать ведомость по блокам Штамп"/>
     </Grid>
 </Window>
