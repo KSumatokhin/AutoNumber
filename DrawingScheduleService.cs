@@ -190,6 +190,7 @@ namespace AutoNumber
                 TextHeight = 250.0,
                 Attachment = attachment,
                 Rotation = 0.0,
+                LineSpacingStyle = LineSpacingStyle.Exactly,
                 LineSpacingFactor = 0.96,
                 ColorIndex = 256
             };
