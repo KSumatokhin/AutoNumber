@@ -5,8 +5,8 @@
         Width="430" SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
-        Background="#202124" Foreground="#F3F4F6"
-        FontFamily="Segoe UI" FontSize="13"
+        Background="#F4F6F8" Foreground="#20262D"
+        FontFamily="Segoe UI" FontSize="12"
         ShowInTaskbar="False">
     <Window.Resources>
         <ResourceDictionary>
@@ -16,7 +16,7 @@
         </ResourceDictionary>
     </Window.Resources>
 
-    <Grid Margin="24">
+    <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -26,14 +26,14 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="Нумерация атрибутов" FontSize="21" FontWeight="SemiBold"/>
-            <TextBlock Margin="0,5,0,0" Foreground="#AEB4BE" TextWrapping="Wrap">
-                <Run Text="Блок: "/><Run Text="{Binding BlockName}" FontWeight="SemiBold" Foreground="#F3F4F6"/>
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Нумерация атрибутов" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Margin="0,5,0,0" Foreground="#65717C" TextWrapping="Wrap">
+                <Run Text="Блок: "/><Run Text="{Binding BlockName}" FontWeight="SemiBold" Foreground="#20262D"/>
             </TextBlock>
         </StackPanel>
 
-        <Grid Grid.Row="1" Margin="0,0,0,18">
+        <Grid Grid.Row="1" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="16"/>
@@ -45,40 +45,40 @@
             </Grid.RowDefinitions>
 
             <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3">
-                <TextBlock Text="АТРИБУТ" Style="{StaticResource CaptionText}"/>
+                <TextBlock Text="Атрибут" Style="{StaticResource CaptionText}"/>
                 <ComboBox ItemsSource="{Binding AvailableTags}" Text="{Binding TagName, UpdateSourceTrigger=PropertyChanged}"
                           IsEditable="True"/>
             </StackPanel>
 
             <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,14,0,0">
-                <TextBlock Text="НАЧАЛЬНЫЙ НОМЕР" Style="{StaticResource CaptionText}"/>
+                <TextBlock Text="Начальный номер" Style="{StaticResource CaptionText}"/>
                 <TextBox x:Name="StartNumberBox" Text="{Binding StartNumber, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,14,0,0">
-                <TextBlock Text="ШАГ" Style="{StaticResource CaptionText}"/>
+                <TextBlock Text="Шаг" Style="{StaticResource CaptionText}"/>
                 <TextBox x:Name="IncrementBox" Text="{Binding Increment, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="2" Margin="0,0,0,20">
+        <Grid Grid.Row="2" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="16"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0">
-                <TextBlock Text="ПРЕФИКС" Style="{StaticResource CaptionText}"/>
+                <TextBlock Text="Префикс" Style="{StaticResource CaptionText}"/>
                 <TextBox Text="{Binding Prefix, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <StackPanel Grid.Column="2">
-                <TextBlock Text="СУФФИКС" Style="{StaticResource CaptionText}"/>
+                <TextBlock Text="Суффикс" Style="{StaticResource CaptionText}"/>
                 <TextBox Text="{Binding Suffix, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="3" Background="#292B30" CornerRadius="6" Padding="14" Margin="0,0,0,22">
+        <GroupBox Grid.Row="3" Header="Область обработки" Margin="0,0,0,12">
             <StackPanel>
-                <TextBlock Text="ОБЛАСТЬ ОБРАБОТКИ" Style="{StaticResource CaptionText}"/>
+
                 <RadioButton Content="Все листы" IsChecked="{Binding IsAllLayouts}" Margin="0,8,0,0"/>
                 <RadioButton Content="Выбрать объекты после закрытия окна" IsChecked="{Binding IsSelectedObjects}" Margin="0,9,0,0"/>
                 <CheckBox Content="Включить пространство модели"
@@ -86,9 +86,9 @@
                           IsEnabled="{Binding IsAllLayouts}"
                           Margin="24,9,0,0"/>
                 <TextBlock Text="Порядок: по листам, сверху вниз и слева направо."
-                           Foreground="#AEB4BE" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                           Foreground="#65717C" Margin="0,12,0,0" TextWrapping="Wrap"/>
             </StackPanel>
-        </Border>
+        </GroupBox>
 
         <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
@@ -96,10 +96,10 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" x:Name="ErrorText" Foreground="#FF8A80"
+            <TextBlock Grid.Column="0" x:Name="ErrorText" Foreground="Firebrick"
                        VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0"/>
             <Button Grid.Column="1" Content="Отмена" IsCancel="True"
-                    Click="CancelButton_Click" Style="{StaticResource SecondaryButton}"/>
+                    Click="CancelButton_Click"/>
             <Button Grid.Column="2" Content="Нумеровать" IsDefault="True"
                     Click="OkButton_Click" Margin="10,0,0,0"/>
         </Grid>
