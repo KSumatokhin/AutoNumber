@@ -1,0 +1,14 @@
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <AssemblyName>DrawingScheduleTests</AssemblyName><LangVersion>latest</LangVersion>
+    <OutputPath>bin\DrawingSchedule\</OutputPath><BaseIntermediateOutputPath>obj\DrawingSchedule\</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System"/><Reference Include="System.Core"/>
+    <Compile Include="DrawingScheduleTests.cs"/>
+    <Compile Include="..\DrawingScheduleService.cs"/>
+    <Compile Include="..\Services\MTextFormatService.cs"/>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets"/>
+</Project>
