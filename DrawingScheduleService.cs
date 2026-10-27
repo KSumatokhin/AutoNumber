@@ -15,7 +15,7 @@ namespace AutoNumber
         private const string StampBlockName = "Штамп";
         private const string NumberTag = "NUM";
         private const string MissingTitle = "-== !!! ЛИСТ БЕЗ НАЗВАНИЯ !!! ==-";
-        private const double RowStep = 800.0;
+        private const double RowStep = 8.0;
 
         private sealed class ScheduleRow
         {
@@ -50,7 +50,7 @@ namespace AutoNumber
             if (pointResult.Status != PromptStatus.OK)
                 return;
 
-            WriteRows(document.Database, rows, pointResult.Value);
+            WriteRows(document.Database, rows, pointResult.Value, document.Editor.CurrentUserCoordinateSystem);
             document.Editor.WriteMessage("\nСтрок ведомости создано: " + rows.Count + ".");
         }
 
@@ -114,7 +114,8 @@ namespace AutoNumber
 
         private static Extents3d GetTitleWindow(BlockReference block)
         {
-            double scale = Math.Abs(block.UnitFactor * block.ScaleFactors.X);
+            // ScaleFactors already contains insertion-unit conversion (DXF 41/42/43).
+            double scale = Math.Abs(block.ScaleFactors.X);
             Vector3d first = new Vector3d(-120.0 * scale, 15.0 * scale, 0.0)
                 .RotateBy(block.Rotation, Vector3d.ZAxis);
             Vector3d second = new Vector3d(-50.0 * scale, 0.0, 0.0)
@@ -157,37 +158,40 @@ namespace AutoNumber
                    bounds.MaxPoint.Y >= window.MinPoint.Y && bounds.MinPoint.Y <= window.MaxPoint.Y;
         }
 
-        private static void WriteRows(Database database, IList<ScheduleRow> rows, Point3d insertionPoint)
+        private static void WriteRows(Database database, IList<ScheduleRow> rows, Point3d insertionPoint, Matrix3d ucs)
         {
             using (var transaction = database.TransactionManager.StartTransaction())
             {
                 var table = (BlockTable)transaction.GetObject(database.BlockTableId, OpenMode.ForRead);
-                var model = (BlockTableRecord)transaction.GetObject(table[BlockTableRecord.ModelSpace], OpenMode.ForWrite);
+                var space = (BlockTableRecord)transaction.GetObject(database.CurrentSpaceId, OpenMode.ForWrite);
+                double scale = database.CurrentSpaceId == table[BlockTableRecord.ModelSpace] ? database.Dimscale : 1.0;
+                if (scale <= 0 || double.IsNaN(scale) || double.IsInfinity(scale))
+                    throw new InvalidOperationException("Для выпуска в модели задайте положительный DIMSCALE. На листе ведомость выпускается 1:1.");
                 var layers = (LayerTable)transaction.GetObject(database.LayerTableId, OpenMode.ForRead);
                 var styles = (TextStyleTable)transaction.GetObject(database.TextStyleTableId, OpenMode.ForRead);
 
                 for (int index = 0; index < rows.Count; index++)
                 {
-                    double y = insertionPoint.Y - index * RowStep;
-                    AddMText(model, transaction, rows[index].NumberText,
+                    double y = insertionPoint.Y - index * RowStep * scale;
+                    AddMText(space, transaction, rows[index].NumberText,
                         new Point3d(insertionPoint.X, y, insertionPoint.Z), AttachmentPoint.BottomCenter,
-                        layers, styles);
-                    AddMText(model, transaction, rows[index].Title,
-                        new Point3d(insertionPoint.X + 950.0, y, insertionPoint.Z), AttachmentPoint.BottomLeft,
-                        layers, styles);
+                        layers, styles, scale, ucs);
+                    AddMText(space, transaction, rows[index].Title,
+                        new Point3d(insertionPoint.X + 9.5 * scale, y, insertionPoint.Z), AttachmentPoint.BottomLeft,
+                        layers, styles, scale, ucs);
                 }
                 transaction.Commit();
             }
         }
 
-        private static void AddMText(BlockTableRecord model, Transaction transaction, string contents,
-            Point3d location, AttachmentPoint attachment, LayerTable layers, TextStyleTable styles)
+        private static void AddMText(BlockTableRecord space, Transaction transaction, string contents,
+            Point3d location, AttachmentPoint attachment, LayerTable layers, TextStyleTable styles, double scale, Matrix3d ucs)
         {
             var text = new MText
             {
                 Location = location,
                 Contents = contents,
-                TextHeight = 250.0,
+                TextHeight = 2.5 * scale,
                 Attachment = attachment,
                 Rotation = 0.0,
                 LineSpacingStyle = LineSpacingStyle.Exactly,
@@ -199,7 +203,8 @@ namespace AutoNumber
             if (styles.Has("GOST 2.304"))
                 text.TextStyleId = styles["GOST 2.304"];
 
-            model.AppendEntity(text);
+            text.TransformBy(ucs);
+            space.AppendEntity(text);
             transaction.AddNewlyCreatedDBObject(text, true);
         }
     }
